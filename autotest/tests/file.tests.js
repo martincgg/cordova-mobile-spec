@@ -3015,21 +3015,28 @@ describe('File API', function() {
 
     describe('read method', function(){
         it("file.spec.82 should error out on non-existent file", function() {
-            var reader = new FileReader();
-            var verifier = jasmine.createSpy().andCallFake(function(evt) {
-                expect(evt).toBeDefined();
-                expect(evt.target.error).toBeFileError(FileError.NOT_FOUND_ERR);
-            });
-            reader.onerror = verifier;
-            var myFile = new File();
-            // old API internals: use fullPath in File object
-            myFile.fullPath = joinURL(root.fullPath, "doesnotexist.err");
-            // new API internals: use localURL in File object
-            myFile.localURL = joinURL(root.toURL(), "doesnotexist.err");
-
-            reader.readAsText(myFile);
-
-            waitsFor(function() { return verifier.wasCalled; }, "verifier never called", Tests.TEST_TIMEOUT);
+             var fileName = cordova.platformId === 'windowsphone' ? root.toURL() + "/" + "somefile.txt" : "somefile.txt",
+                 verifier = jasmine.createSpy().andCallFake(function (evt) {
+                     expect(evt).toBeDefined();
+                     expect(evt.target.error).toBeFileError(FileError.NOT_FOUND_ERR);
+                 });
+             runs(function () {
+                 root.getFile(fileName, {
+                     create : true
+                 }, function (entry) {
+                     entry.file(function (file) {
+                         deleteEntry(fileName, function () {
+                             //Create FileReader
+                             var reader = new FileReader();
+                             reader.onerror = verifier;
+                             reader.readAsText(file);
+                         });
+                     });
+                 });
+             });
+              
+              waitsFor(function() { return verifier.wasCalled; }, "verifier never called", Tests.TEST_TIMEOUT);
+                
         });
         it("file.spec.83 should be able to read native blob objects", function() {
             // Skip test if blobs are not supported (e.g.: Android 2.3).
@@ -3282,10 +3289,6 @@ describe('File API', function() {
         it("file.spec.97 should be able to write and append to file, File object", function() {
             var fileName = "writer.append.File",
                 theWriter,
-                // old API internals: use fullPath in File object
-                filePath = joinURL(root.fullPath, fileName),
-                // new API internals: use localURL in File object
-                localURL = joinURL(root.toURL(), fileName),
                 // file content
                 rule = "There is an exception to every rule.",
                 // for checking file length
@@ -3307,22 +3310,21 @@ describe('File API', function() {
 
                     // cleanup
                     deleteFile(fileName);
-                }),
-                // writes initial file content
-                write_file = function(file) {
-                    theWriter = new FileWriter(file);
-                    theWriter.onwriteend = verifier;
-                    theWriter.write(rule);
-                };
+                });
 
             // create file, then write and append to it
-            runs(function() {
-                var file = new File();
-                // old API internals: use fullPath in File object
-                file.fullPath = filePath;
-                // new API internals: use localURL in File object
-                file.localURL = localURL;
-                write_file(file);
+            runs(function () {
+                root.getFile(fileName, {
+                    create : true
+                }, function (file) {
+                    file.createWriter(function (writer) {
+                    theWriter = writer;
+                    //write_file(writer);
+                    theWriter.onwriteend = verifier;
+                    theWriter.write(rule);
+                    });
+                });
+
             });
 
             waitsFor(function() { return anotherVerifier.wasCalled; }, "verifier", Tests.TEST_TIMEOUT);
